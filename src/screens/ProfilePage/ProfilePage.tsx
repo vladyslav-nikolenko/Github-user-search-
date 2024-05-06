@@ -1,97 +1,79 @@
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  useGetFollowers,
-  useGetFollowing,
-  useGetOrganization,
-  useGetUsers,
-} from "../../query/query.tsx";
+import { useGQLQuery } from "../../query/query.ts";
 import {
   StyledAvatar,
   StyledBottomContainer,
   StyledCompanyContainer,
   StyledFollowersContainer,
   StyledPaper,
-  StyledUserInfoContainer,
+  StyledUserInfoContainer
 } from "./ProfilePage.styles.ts";
 import { Button } from "@mui/material";
 import { Path } from "../../common/consts.ts";
-import { User } from "../Search/Search.tsx";
+import { UserNode } from "../Search/Search.types.ts";
+import { getUserInfo } from "../../query/utils.ts";
 
 export const ProfilePage = () => {
   const { userName } = useParams();
   const navigate = useNavigate();
+  const queryUserName = userName ?? "";
 
-  const { data } = useGetUsers(userName ?? "", 1, 1);
-  const { data: followersList, isError: isFollowersError } = useGetFollowers(
-    userName ?? "",
-  );
-  const { data: followingList, isError: isFollowingError } = useGetFollowing(
-    userName ?? "",
-  );
-  const { data: company, isError: isCompanyError } = useGetOrganization(
-    userName ?? "",
-  );
-  const userInfo = data?.items?.[0];
+  const { data: gqlData } = useGQLQuery({
+    queryKey: queryUserName,
+    query: getUserInfo(queryUserName)
+  });
+
+  const userData = gqlData?.data?.search?.edges?.[0]?.node;
+  const company = userData?.company;
+  const followers = userData?.followers?.edges;
+  const followersCount = userData?.followers?.totalCount;
+  const followingCount = userData?.following?.totalCount;
+  const following = userData?.following?.edges;
+
   const onUserClick = (userName: string) => {
     navigate(Path.user(userName));
   };
-
-  const isDisplayFollowingList = !followingList?.message && !isFollowingError;
-  const isDisplayFollowersList = !followersList?.message && !isFollowersError;
-  const isDisplayCompany =
-    !company?.message && !isCompanyError && !!company?.length;
 
   return (
     <StyledPaper elevation={5}>
       <h1>User Profile</h1>
       <StyledUserInfoContainer>
-        <StyledAvatar alt="avatar picture" src={userInfo?.avatar_url} />
-        <h2>User login: {userInfo?.login}</h2>
+        <StyledAvatar alt="avatar picture" src={userData?.avatarUrl} />
+        <h2>User login: {userData?.login}</h2>
+        <h2>User name: {userData?.name}</h2>
       </StyledUserInfoContainer>
       <StyledFollowersContainer>
-        {isDisplayFollowersList && (
-          <div>
-            Followers list:
-            {followersList?.length === 0 && <div>No following users</div>}
-            {followersList?.map((follower: User) => {
-              return (
-                <div
-                  key={follower.login}
-                  onClick={() => onUserClick(follower.login)}
-                >
-                  {follower.login}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {isDisplayFollowingList && (
-          <div>
-            Following list:
-            {followingList?.length === 0 && (
-              <div>User is not following anyone</div>
-            )}
-            {followingList?.map((following: User) => {
-              return (
-                <div
-                  key={following.login}
-                  onClick={() => onUserClick(following.login)}
-                >
-                  {following.login}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div>
+          <p>Number of followers - {followersCount}</p>
+          Followers list:
+          {followers?.length === 0 && <div>No following users</div>}
+          {followers?.map(({ node }: { node: UserNode }) => {
+            return (
+              <div key={node.login} onClick={() => onUserClick(node.login)}>
+                {node.login}
+              </div>
+            );
+          })}
+        </div>
+        <div>
+          <p>Number of Following users - {followingCount}</p>
+          Following list:
+          {following?.length === 0 && <div>User is not following anyone</div>}
+          {following?.map(({ node }: { node: UserNode }) => {
+            return (
+              <div key={node.login} onClick={() => onUserClick(node.login)}>
+                {node.login}
+              </div>
+            );
+          })}
+        </div>
       </StyledFollowersContainer>
       <StyledBottomContainer>
         <Button href="/">Back to search</Button>
-        {isDisplayCompany && (
+        {company && (
           <StyledCompanyContainer>
             <p>Company link:</p>
-            <a href={`https://github.com/${company?.[0]?.login}`}>
-              {company?.[0]?.login}
-            </a>
+            <a href={`https://github.com/${company}`}>{company}</a>
           </StyledCompanyContainer>
         )}
       </StyledBottomContainer>
